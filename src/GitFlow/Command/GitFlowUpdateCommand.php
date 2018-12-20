@@ -1,149 +1,180 @@
 <?php
-namespace IchHabRecht\GitFlow\Command;
+    namespace IchHabRecht\GitFlow\Command;
 
-use Composer\Command\UpdateCommand;
-use Composer\Package\Link;
-use Composer\Package\Package;
-use Composer\Package\PackageInterface;
-use Composer\Repository\ComposerRepository;
-use Composer\Repository\RepositoryInterface;
-use Composer\Semver\VersionParser;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\OutputInterface;
+    use Composer\Command\UpdateCommand;
+    use Composer\Package\Link;
+    use Composer\Package\Package;
+    use Composer\Package\PackageInterface;
+    use Composer\Repository\ComposerRepository;
+    use Composer\Repository\RepositoryInterface;
+    use Composer\Semver\VersionParser;
+    use Symfony\Component\Console\Input\InputInterface;
+    use Symfony\Component\Console\Input\InputOption;
+    use Symfony\Component\Console\Output\OutputInterface;
 
-class GitFlowUpdateCommand extends UpdateCommand
-{
-    /**
-     * @var PackageInterface[]
-     */
-    private $packages;
-
-    /**
-     * @var string
-     */
-    private $stability;
-
-    /**
-     * Sets the name of this command
-     */
-    protected function configure()
+    class GitFlowUpdateCommand extends UpdateCommand
     {
-        parent::configure();
-        $this->setName('git-flow-update');
-        $this->addOption('stability', '', InputOption::VALUE_OPTIONAL, 'Define the branch prefix which should be used to checkout your repositories');
-    }
+        /**
+         * @var PackageInterface[]
+         */
+        private $packages;
 
-    /**
-     * Execute command, adjust constraints and start update
-     *
-     * @param InputInterface $input
-     * @param OutputInterface $output
-     * @return int
-     */
-    protected function execute(InputInterface $input, OutputInterface $output)
-    {
-        $io = $this->getIO();
-        $io->writeError('> ichhabrecht/composer-git-flow-plugin');
+        /**
+         * @var string
+         */
+        private $stability;
+        /**
+         * @var bool
+         */
+        private $verbose = false;
 
-        $this->stability = $input->getOption('stability');
-        $stability = trim((string)getenv('STABILITY'));
-        if (!empty($stability)) {
-            $io->writeError('Warning: You are using the deprecated environment variable `STABILITY`. Please use cli option --stability ' . $stability);
-            $this->stability = $stability;
+        /**
+         * Sets the name of this command
+         */
+        protected function configure()
+        {
+            parent::configure();
+            $this->setName('git-flow-update');
+            $this->addOption('stability', '', InputOption::VALUE_OPTIONAL, 'Define the branch prefixes which should be used to checkout your repositories (comma separated values)');
         }
 
-        $io->writeError('  - using STABILITY=' . $this->stability);
-        $io->writeError('');
+        /**
+         * Execute command, adjust constraints and start update
+         *
+         * @param InputInterface $input
+         * @param OutputInterface $output
+         * @return int
+         */
+        protected function execute(InputInterface $input, OutputInterface $output)
+        {
+            $io = $this->getIO();
+            $io->writeError('> ichhabrecht/composer-git-flow-plugin');
 
-        $composer = $this->getComposer(true, $input->getOption('no-plugins'));
+            $this->verbose = $input->getOption('verbose') ?: false;
+            $this->stability = $input->getOption('stability');
 
-        $requires = $composer->getPackage()->getRequires();
-        $newRequires = $this->adjustGitFlowPackages($requires);
-        $packages = array_keys($newRequires);
-        $composer->getPackage()->setRequires(array_merge($requires, $newRequires));
-
-        if (!$input->getOption('no-dev')) {
-            $requires = $this->adjustGitFlowPackages($composer->getPackage()->getDevRequires());
-            $newRequires = $this->adjustGitFlowPackages($requires);
-            $packages += array_keys($newRequires);
-            $composer->getPackage()->setDevRequires(array_merge($requires, $newRequires));
-        }
-
-        $input->setArgument('packages', $packages);
-        $io->writeError('');
-
-        return parent::execute($input, $output);
-    }
-
-    /**
-     * Loops over packages and adjusts the dependency constraints
-     *
-     * @param array $packages
-     * @return array
-     */
-    protected function adjustGitFlowPackages(array $packages)
-    {
-        $newRequires = [];
-        $versionParser = new VersionParser();
-        foreach ($packages as $packageName => $package) {
-            if ('dev-master' === $package->getPrettyConstraint()) {
-                $branch = $this->findStabilityBranch($packageName);
-                $this->getIO()->writeError('  - Adjusting ' . $packageName . ' to ' . $branch);
-                $link = new Link(
-                    $package->getSource(),
-                    $package->getTarget(),
-                    $versionParser->parseConstraints($branch),
-                    $package->getDescription(),
-                    $branch
-                );
-                $newRequires[$packageName] = $link;
+            $stability = trim((string)getenv('STABILITY'));
+            if (!empty($stability)) {
+                $io->writeError('Warning: You are using the deprecated environment variable `STABILITY`. Please use cli option --stability ' . $stability);
+                $this->stability = $stability;
             }
+
+            if ($this->verbose) {
+                $io->writeError('  - using STABILITY=' . $this->stability);
+                $io->writeError('');
+            }
+
+            $composer = $this->getComposer(true, $input->getOption('no-plugins'));
+
+            $requires = $composer->getPackage()->getRequires();
+            $newRequires = $this->adjustGitFlowPackages($requires);
+            $packages = array_keys($newRequires);
+            $composer->getPackage()->setRequires(array_merge($requires, $newRequires));
+
+            if (!$input->getOption('no-dev')) {
+                $requires = $this->adjustGitFlowPackages($composer->getPackage()->getDevRequires());
+                $newRequires = $this->adjustGitFlowPackages($requires);
+                $packages += array_keys($newRequires);
+                $composer->getPackage()->setDevRequires(array_merge($requires, $newRequires));
+            }
+
+            $input->setArgument('packages', $packages);
+            $io->writeError('');
+
+            return parent::execute($input, $output);
         }
 
-        return $newRequires;
-    }
+        /**
+         * Loops over packages and adjusts the dependency constraints
+         *
+         * @param array $packages
+         * @return array
+         */
+        protected function adjustGitFlowPackages(array $packages)
+        {
+            $newRequires = [];
+            $versionParser = new VersionParser();
+            foreach ($packages as $packageName => $package) {
+                if ('dev-master' === $package->getPrettyConstraint()) {
+                    $branch = $this->findStabilityBranch($packageName);
+                    $this->getIO()->writeError('  - Adjusting ' . $packageName . ' to ' . $branch);
+                    $link = new Link(
+                        $package->getSource(),
+                        $package->getTarget(),
+                        $versionParser->parseConstraints($branch),
+                        $package->getDescription(),
+                        $branch
+                    );
+                    $newRequires[$packageName] = $link;
+                }
+            }
 
-    /**
-     * Returns package branch to use according to the desired stability
-     *
-     * @param string $packageName
-     * @return string
-     */
-    protected function findStabilityBranch($packageName)
-    {
-        if ($this->packages === null) {
-            $this->initializePackages();
+            return $newRequires;
         }
 
-        if (!isset($this->packages[$packageName]) || empty($this->stability) || 'master' === $this->stability) {
+        /**
+         * Returns package branch to use according to the desired stability
+         *
+         * @param string $packageName
+         * @return string
+         */
+        /**
+         * Returns package branch to use according to the desired stability
+         *
+         * @param string $packageName
+         * @return string
+         */
+        protected function findStabilityBranch($packageName)
+        {
+            if ($this->packages === null) {
+                $this->initializePackages();
+            }
+
+            if (!isset($this->packages[$packageName]) || empty($this->stability) || 'master' === $this->stability) {
+                return 'dev-master';
+            }
+
+            if (is_string($this->stability)) {
+                $this->stability = explode(',', $this->stability) ?: [];
+            }
+
+
+            foreach($this->stability as $stability) {
+                /** @var Package $package */
+                foreach ($this->packages[$packageName] as $package) {
+                    $prettyVersion = $package->getPrettyVersion();
+
+                    if ($this->verbose) {
+                        $this->getIO()->writeError("    - Looking for dev-$stability in $packageName ($prettyVersion)");
+                    }
+
+                    if (0 === stripos($prettyVersion, 'dev-' . trim($stability))) {
+                        if ($this->verbose) {
+                            $this->getIO()->writeError("    - Found dev-$stability in $packageName ($prettyVersion)");
+                        }
+
+                        return $prettyVersion;
+                    }
+                }
+            }
+
             return 'dev-master';
         }
 
-        /** @var Package $package */
-        foreach ($this->packages[$packageName] as $package) {
-            if (0 === strpos($package->getPrettyVersion(), 'dev-' . $this->stability)) {
-                return $package->getPrettyVersion();
-            }
-        }
-
-        return 'dev-master';
-    }
-
-    /**
-     * Initializes the known composer packages
-     */
-    protected function initializePackages()
-    {
-        $repositoryManager = $this->getComposer()->getRepositoryManager();
-        /** @var RepositoryInterface $repository */
-        foreach ($repositoryManager->getRepositories() as $repository) {
-            if ($repository instanceof ComposerRepository && $repository->hasProviders()) {
-                continue;
-            }
-            foreach ($repository->getPackages() as $package) {
-                $this->packages[$package->getName()] = $package->getRepository()->getPackages();
+        /**
+         * Initializes the known composer packages
+         */
+        protected function initializePackages()
+        {
+            $repositoryManager = $this->getComposer()->getRepositoryManager();
+            /** @var RepositoryInterface $repository */
+            foreach ($repositoryManager->getRepositories() as $repository) {
+                if ($repository instanceof ComposerRepository && $repository->hasProviders()) {
+                    continue;
+                }
+                foreach ($repository->getPackages() as $package) {
+                    $this->packages[$package->getName()] = $package->getRepository()->getPackages();
+                }
             }
         }
     }
-}
