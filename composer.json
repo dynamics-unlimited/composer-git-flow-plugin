@@ -1,11 +1,10 @@
 {
-  "name": "ichhabrecht/composer-git-flow-plugin",
-  "description": "This plugin allows to use repositories using the Git Flow workflow (or any other branching model) with Composer",
+  "name": "dynamics-unlimited/composer-git-flow-plugin",
+  "description": "(Fork of ichhabrecht/composer-git-flow-plugin) This plugin allows to use repositories using the Git Flow workflow (or any other branching model) with Composer",
   "type": "composer-plugin",
   "authors": [
     {
-      "name": "Nicole Cordes",
-      "email": "typo3@cordes.co"
+      "name": "Nicolas GIROD"
     }
   ],
   "license": [
