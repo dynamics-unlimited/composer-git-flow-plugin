@@ -7,7 +7,7 @@ This plugin allows to use repositories using the Git Flow workflow (or any other
 First you have to require the plugin. 
 
 ```bash
-$ composer require ichhabrecht/composer-git-flow-plugin
+$ composer require dynamics-unlimited/composer-git-flow-plugin
 ```
 
 ## Usage
