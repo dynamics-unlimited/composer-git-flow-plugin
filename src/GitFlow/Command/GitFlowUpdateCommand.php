@@ -48,7 +48,7 @@
         protected function execute(InputInterface $input, OutputInterface $output)
         {
             $io = $this->getIO();
-            $io->writeError('> ichhabrecht/composer-git-flow-plugin');
+            $io->writeError('> dynamics-unlimited/composer-git-flow-plugin');
 
             $this->verbose = $input->getOption('verbose') ?: false;
             $this->stability = $input->getOption('stability');
