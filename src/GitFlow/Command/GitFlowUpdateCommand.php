@@ -1,28 +1,21 @@
 <?php
     namespace IchHabRecht\GitFlow\Command;
 
-    use Composer\Command\UpdateCommand;
-    use Composer\Package\Link;
-    use Composer\Package\Package;
-    use Composer\Package\PackageInterface;
-    use Composer\Repository\ComposerRepository;
-    use Composer\Repository\RepositoryInterface;
-    use Composer\Semver\VersionParser;
+    use Symfony\Component\Console\Output\OutputInterface;
     use Symfony\Component\Console\Input\InputInterface;
     use Symfony\Component\Console\Input\InputOption;
-    use Symfony\Component\Console\Output\OutputInterface;
+    use Composer\Semver\Constraint\Constraint;
+    use Composer\Package\PackageInterface;
+    use Composer\Command\UpdateCommand;
+    use Composer\Semver\VersionParser;
+    use Composer\Package\Link;
 
     class GitFlowUpdateCommand extends UpdateCommand
     {
         /**
-         * @var PackageInterface[]
+         * @var string|string[]
          */
-        private $packages;
-
-        /**
-         * @var string
-         */
-        private $stability;
+        private $stability = 'dev-master';
         /**
          * @var bool
          */
@@ -50,8 +43,8 @@
             $io = $this->getIO();
             $io->writeError('> dynamics-unlimited/composer-git-flow-plugin');
 
-            $this->verbose = $input->getOption('verbose') ?: false;
-            $this->stability = $input->getOption('stability');
+            $this->verbose = (bool)$input->getOption('verbose') ?: false;
+            $this->stability = (string)$input->getOption('stability');
 
             $stability = trim((string)getenv('STABILITY'));
             if (!empty($stability)) {
@@ -97,7 +90,7 @@
             foreach ($packages as $packageName => $package) {
                 if ('dev-master' === $package->getPrettyConstraint()) {
                     $branch = $this->findStabilityBranch($packageName);
-                    $this->getIO()->writeError('  - Adjusting ' . $packageName . ' to ' . $branch);
+                    $this->getIO()->writeError('      ➜ Adjusting ' . $packageName . ' to ' . $branch);
                     $link = new Link(
                         $package->getSource(),
                         $package->getTarget(),
@@ -118,63 +111,38 @@
          * @param string $packageName
          * @return string
          */
-        /**
-         * Returns package branch to use according to the desired stability
-         *
-         * @param string $packageName
-         * @return string
-         */
         protected function findStabilityBranch($packageName)
         {
-            if ($this->packages === null) {
-                $this->initializePackages();
-            }
-
-            if (!isset($this->packages[$packageName]) || empty($this->stability) || 'master' === $this->stability) {
-                return 'dev-master';
-            }
+            $repositoryManager = $this->getComposer()->getRepositoryManager();
 
             if (is_string($this->stability)) {
                 $this->stability = explode(',', $this->stability) ?: [];
             }
 
-
             foreach($this->stability as $stability) {
-                /** @var Package $package */
-                foreach ($this->packages[$packageName] as $package) {
+                $stability ='dev-' . trim($stability);
+
+                if ($this->verbose) {
+                    $this->getIO()->writeError("    - Looking for $stability in $packageName");
+                }
+
+                $package = $repositoryManager->findPackage($packageName, new Constraint('==', $stability));
+
+                if ($package instanceof PackageInterface) {
                     $prettyVersion = $package->getPrettyVersion();
 
                     if ($this->verbose) {
-                        $this->getIO()->writeError("    - Looking for dev-$stability in $packageName ($prettyVersion)");
+                        $this->getIO()->writeError("    - Found $stability in $packageName ($prettyVersion)");
                     }
 
-                    if (0 === stripos($prettyVersion, 'dev-' . trim($stability))) {
-                        if ($this->verbose) {
-                            $this->getIO()->writeError("    - Found dev-$stability in $packageName ($prettyVersion)");
-                        }
-
-                        return $prettyVersion;
-                    }
+                    return $prettyVersion;
                 }
+            }
+
+            if ($this->verbose) {
+                $this->getIO()->writeError("    - Defaulting to dev-master for $packageName");
             }
 
             return 'dev-master';
-        }
-
-        /**
-         * Initializes the known composer packages
-         */
-        protected function initializePackages()
-        {
-            $repositoryManager = $this->getComposer()->getRepositoryManager();
-            /** @var RepositoryInterface $repository */
-            foreach ($repositoryManager->getRepositories() as $repository) {
-                if ($repository instanceof ComposerRepository && $repository->hasProviders()) {
-                    continue;
-                }
-                foreach ($repository->getPackages() as $package) {
-                    $this->packages[$package->getName()] = $package->getRepository()->getPackages();
-                }
-            }
         }
     }
